@@ -1,19 +1,33 @@
 # MC_RTCの使い方　How to use MC_RTC
 
+## 目次
+- [CHIDORIを動かすまで](#chidoriを動かすまで)
+  - [mc_rtcのコンテナを起動させる](#mc_rtcのコンテナを起動させる)
+  - [ROSマスターを実行](#rosマスターを実行)
+  - [choreonoid起動](#choreonoid起動)
+  - [RVIZ起動](#rviz起動)
+  - [実際に歩かせる](#実際に歩かせる)
+- [ログ](#ログ)
+  - [mc_rtcのログの取り方](#mc_rtcのログの取り方)
+  - [運動量のログの取り方](#運動量のログの取り方)
+  - [運動量のログの見方](#運動量のログの見方-編集中)
+- [歩行パラメータの設定](#歩行パラメータの設定)
+- [沈む床のシミュレーション](#沈む床のシミュレーション)
+  - [沈む床の実装](#沈む床の実装)
 ## CHIDORIを動かすまで
 ### mc_rtcのコンテナを起動させる。
-```
+```bash
 cd ~/irsl_mc_rtc
 ROBOT=CHIDORI ./run.sh
 ```
 ### ROSマスターを実行
-```
+```bash
 roscore
 ```
 
 ### choreonoid起動
 別のターミナルを開き、そこから同様にコンテナにアクセスし、choreonoidを起動させる。
-```
+```bash
 cd ~/irsl_mc_rtc
 
 # コンテナ起動
@@ -28,7 +42,7 @@ choreonoid sim_mc.cnoid --start-simulation
 
 ### RVIZ起動
 choreonoidの手順と同様、別のターミナルを開き、そこから同様にコンテナにアクセスし、RVIZを起動させる。
-```
+```bash
 cd ~/irsl_mc_rtc
 
 # コンテナ起動
@@ -89,11 +103,11 @@ LogDirectory: /userdir/chidori_LOG/bins
 Timestep: 0.002
 ```
 次にbinファイルを読み取れるようにlog_converterを使ってコンバートする。この時にbinファイルのパスと、出力先を記入する。今回はchidori_LOG/converted_binsに出力する。
-```
+```bash
 python3 /userdir/log_format/log_converter.py -f /userdir/chidori_LOG/bins/mc-control-BaselineWalkingController-latest.bin -d /userdir/chidori_LOG/converted_bins/
 ```
 コンバートしたファイルを使用して、グラフを表示するには、以下のコマンドを入力する。
-```
+```bash
 datalogger_plotter_with_pyqtgraph.py --start 000 --length 80000  --plot /userdir/log_format/config/mc_rtc_plot.yaml --layout /userdir/log_format/config/chidori_com_zmp_layout.yaml -f /userdir/chidori_LOG/converted_bins/mc-control-BaselineWalkingController-latest
 ```
 
@@ -177,3 +191,81 @@ exec(open('/irsl_mc_rtc/userdir/log_format/cnoid_log_parser.py').read())
 ```
 python3 datalogger_plotter_with_pyqtgraph.py --start 000 --length 80000 --plot ../../../log_format/config/mc_rtc_plot.yaml --layout /home/irsl/irsl_mc_rtc/userdir/log_format/config/chidori_com_zmp_layout.yaml -f /home/irsl/irsl_mc_rtc/userdir/chidori_LOG/converted_bins/
 ```
+
+
+## 歩行パラメータの設定
+
+ここでは、CHIDORIの歩行に関わるパラメータの変更方法を示す。\
+まず、CHIDORIの歩行パラメータは"./mc_rtc_ws/install/lib/mc_controller/BaselineWalkingController/chidori.yaml"に格納されている。
+中身は以下のようになっており、各々のパラメータを変更することで歩行の仕方をカスタマイズすることができる。
+```yaml:chidori.yaml
+CoMTask:
+  activeJoints: [
+  "Root",
+  "LLEG_JOINT0", "LLEG_JOINT1", "LLEG_JOINT2", "LLEG_JOINT3", "LLEG_JOINT4", "LLEG_JOINT5", 
+  "RLEG_JOINT0", "RLEG_JOINT1", "RLEG_JOINT2", "RLEG_JOINT3", "RLEG_JOINT4", "RLEG_JOINT5"]
+
+BaseOrientationTask:
+  frame: BODY
+
+FootManager:
+  footstepDuration: 0.9 # [sec]
+  doubleSupportRatio: 0.15 # []
+  impedanceGains:
+    SingleSupport:
+      spring:
+        linear: [2250, 2250, 450] # Weaken Z-component spring to avoid a too fast recovery for mass errors
+
+CentroidalManager:
+  useActualStateForMpc: true
+  enableZmpFeedback: false
+  useTargetPoseForControlRobotAnchorFrame: true
+  useActualComForWrenchDist: false
+  # enableComZFeedback: false
+  dcmGainP: 2.0 # It must be greater than 1 to be stable
+  comZGainP: 20000.0
+  zmpVelGain: 0.02
+  refComZ: 0.7039 # [m]
+  method: PreviewControlZmp
+  horizonDuration: 2.0 # [sec]
+  horizonDt: 0.002 # [sec]
+  # method: IntrinsicallyStableMpc
+  # horizonDuration: 2.0 # [sec]
+  # horizonDt: 0.02 # [sec]
+```
+よく使う項目を２つあげる。
+
+### footstepDuration
+一歩にかかる時間
+### doubleSupportRatio
+一歩の中で両足が付いている時間の割合
+
+## 沈む床のシミュレーション
+
+ここでは、沈む床のシミュレーション環境を実装し、CHIDORIに階段昇降の動作を行わせる方法を示す。
+
+### 沈む床の実装 (※編集中)
+沈む床を実装するにあたって、データを以下からダウンロードする。
+> https://github.com/IRSL-tut/cnoid_spring_customizer.git
+※(途中)sim_mc_step.cnoidのダウンロード先を調べる
+
+ダウンロードしたら、セットアップを行う。以下のコマンドを実行する。
+
+```bash
+cp sim_mc_step.cnoid /mc_rtc_ws/install/share/hrpsys/samples/CHIDORI
+cp ~/BaselineWalkingController.yaml /root/.config/mc_rtc/controllers/
+
+cd ~/cnoid_spring_customizer/build
+make
+make install
+
+export SPRING_CUSTOMIZER_ROBOT=step_floor
+export SPRING_CUSTOMIZER_CONF_FILE=/userdir/cnoid_spring_customizer/sample/SpringCustomizerSettings.yaml
+```
+
+実行する際は、以下のコマンドを実行する。
+```bash
+cd /mc_rtc_ws/install/share/hrpsys/samples/CHIDORI
+choreonoid sim_mc_step.cnoid --python /userdir/add_log.py --start-simulation
+```
+
