@@ -253,7 +253,6 @@ CentroidalManager:
 
 ```bash
 cp sim_mc_step.cnoid /mc_rtc_ws/install/share/hrpsys/samples/CHIDORI
-cp ~/BaselineWalkingController.yaml /root/.config/mc_rtc/controllers/
 
 cd ~/cnoid_spring_customizer/build
 make
@@ -268,4 +267,112 @@ export SPRING_CUSTOMIZER_CONF_FILE=/userdir/cnoid_spring_customizer/sample/Sprin
 cd /mc_rtc_ws/install/share/hrpsys/samples/CHIDORI
 choreonoid sim_mc_step.cnoid --python /userdir/add_log.py --start-simulation
 ```
+
+### 階段昇降
+沈む床を歩かせるとき、CHIDORIに階段を登る動作をさせるのが有効である。今回はCHIDORIに階段昇降を行えるようにする。
+まずCHIDORIの階段昇降を行うためのパラメータを格納したファイル"BaselineWalkingController.yaml"を作成する。
+```yaml:BaselineWalkingController.yaml
+FootManager:
+  footstepDuration: 1.2 # [sec]
+  doubleSupportRatio: 0.2 # []
+
+CentroidalManager:
+  refComZ: 0.81 # [m]
+
+transitions:
+  - [BWC::Initial_, OK, BWC::ConfigWalk_, Auto]
+
+states:
+  BWC::Initial_:
+    base: BWC::Initial
+    configs:
+      autoStartTime: 2.0
+
+  BWC::ConfigWalk_:
+    base: BWC::ConfigWalk
+    configs:
+      footstepList:
+        # 1歩目: 左足を前に出す（歩幅を0.4メートルに設定）
+        - foot: Left
+          footMidpose:
+            translation: [0.4, 0.0, 0.0] # x軸方向に0.4メートル
+          startTime: 2.0
+          swingTrajConfig:
+            type: CubicSplineSimple
+            withdrawOffset: [0, 0, 0.05]
+            approachOffset: [0, 0, 0.02]
+            swingOffset: [0, 0, 0.05]
+
+        # 2歩目: 右足を前に出す（右足を垂直に下ろすように調整）
+        - footMidpose:
+            translation: [0.4, 0.0, 0.0] # 同じくx軸方向に0.4メートル
+          swingTrajConfig:
+            type: CubicSplineSimple
+            withdrawOffset: [0, 0, 0.18] # 足を高く持ち上げる
+            approachOffset: [0, 0, 0.02]
+            swingOffset: [0, 0, 0.18] # 足を垂直に降ろす
+
+        # 3歩目: 左足で段差を上る（x軸方向にさらに前進し、z軸方向の高さを下げる、歩幅を0.45に調整）
+        - footMidpose:
+            translation: [0.85, 0.0, 0.1] # x軸方向に0.85メートル進み、z軸方向に0.1メートル
+          swingTrajConfig:
+            type: CubicSplineSimple
+            withdrawOffset: [0, 0, 0.08]
+            approachOffset: [0, 0, 0.02]
+            swingOffset: [0, 0, 0.08]
+
+        # 4歩目: 右足を段差に揃える（右足を垂直に下ろすように調整）
+        - footMidpose:
+            translation: [0.85, 0.0, 0.095] # 右足も同じく段差に揃える
+          swingTrajConfig:
+            type: CubicSplineSimple
+            withdrawOffset: [0, 0, 0.18] # 足を高く持ち上げる
+            approachOffset: [0, 0, 0.02]
+            swingOffset: [0, 0, 0.18] # 足を垂直に降ろす
+
+        # 5歩目: 左足でさらに段差を上る（歩幅を0.45に調整）
+        - footMidpose:
+            translation: [1.30, 0.0, 0.1] # x軸方向に1.30メートル進み、z軸方向に0.1メートル
+          swingTrajConfig:
+            type: CubicSplineSimple
+            withdrawOffset: [0, 0, 0.08]
+            approachOffset: [0, 0, 0.02]
+            swingOffset: [0, 0, 0.08]
+
+        # 6歩目: 右足を段差に揃える（右足を垂直に下ろすように調整）
+        - footMidpose:
+            translation: [1.30, 0.0, 0.095] # 右足も同じく段差に揃える
+          swingTrajConfig:
+            type: CubicSplineSimple
+            withdrawOffset: [0, 0, 0.18] # 足を高く持ち上げる
+            approachOffset: [0, 0, 0.02]
+            swingOffset: [0, 0, 0.18] # 足を垂直に降ろす
+
+        # 7歩目: 左足でさらに段差を上る（歩幅を0.45に調整）
+        - footMidpose:
+            translation: [1.75, 0.0, 0.1] # 左足をさらに段差を上る (x軸方向に1.75メートル、z軸は0.1メートル)
+          swingTrajConfig:
+            type: CubicSplineSimple
+            withdrawOffset: [0, 0, 0.08] # 左足も高めに持ち上げる
+            approachOffset: [0, 0, 0.02]
+            swingOffset: [0, 0, 0.08]
+
+        # 8歩目: 右足を段差に揃える（右足を垂直に下ろすように調整）
+        - footMidpose:
+            translation: [1.75, 0.0, 0.095] # 右足も同じく段差に揃える
+          swingTrajConfig:
+            type: CubicSplineSimple
+            withdrawOffset: [0, 0, 0.18] # 足を高く持ち上げる
+            approachOffset: [0, 0, 0.02]
+            swingOffset: [0, 0, 0.18] # 足を垂直に降ろす
+```
+今設定してあるパラメータは、今回実装した沈み込む床を歩くためのパラメータに設定してある。
+作成できたら、以下の階層にコピーする。
+```bash
+cp ~/BaselineWalkingController.yaml /root/.config/mc_rtc/controllers/
+```
+これでchoreonoidを実行すればシミュレーションが始まる。
+（注意）この階層にファイルをおいた場合、CHIDORIが階段昇降をデフォルトで行うようになる。このとき、RVIZで歩幅などは設定する必要はなく、自動でシミュレーションがスタートする。
+
+
 
